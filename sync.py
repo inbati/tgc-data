@@ -14,7 +14,7 @@ import json, os, sys, urllib.request, urllib.error, collections
 
 SUPABASE = "https://kdjngbkgumcihyawqbhu.supabase.co"
 ANON = "sb_publishable_k0B8vIHTqxO0zBjZBKk1uw_qcsvbiKm"   # public publishable key
-PROJECT_SPLITS = [2, 10, 15, 32]                           # The Grand Central
+PROJECT_ID = 5                                             # The Grand Central
 IMG = "https://api.horizonmorocco.com/storage/v1/object/public/unit-images/"
 
 RT_CACHE = os.environ.get("RT_CACHE_FILE", ".rt_cache")    # persisted rotating token
@@ -45,11 +45,31 @@ def refresh(rt):
     return None
 
 
+def enabled_splits(access):
+    """Project splits (tranches/immeubles) that are actually commercialised.
+    A split is on sale when b2c_is_enabled is true; 'Pas encore commercialisé'
+    blocks (e.g. Immeuble D) have it false and must be excluded."""
+    url = (SUPABASE + "/rest/v1/project_splits?select=id"
+           "&project_id=eq." + str(PROJECT_ID) + "&b2c_is_enabled=eq.true")
+    headers = {"apikey": ANON, "Authorization": "Bearer " + access,
+               "Accept": "application/json"}
+    st, txt = http("GET", url, headers)
+    if st != 200:
+        raise RuntimeError("splits pull status %s: %s" % (st, txt[:200]))
+    ids = [row["id"] for row in json.loads(txt)]
+    return ids
+
+
 def pull_units(access):
-    """Authenticated pull of all TGC units."""
-    splits = ",".join(str(x) for x in PROJECT_SPLITS)
+    """Authenticated pull of available, commercialised TGC units."""
+    splits = enabled_splits(access)
+    if not splits:
+        raise RuntimeError("no commercialised splits returned")
+    print("commercialised splits:", splits)
+    inlist = ",".join(str(x) for x in splits)
     url = (SUPABASE + "/rest/v1/units?select=*"
-           "&project_split_id=in.(" + splits + ")"
+           "&project_split_id=in.(" + inlist + ")"
+           "&type=eq.APPARTEMENT&reserved=eq.false"
            "&order=reference.asc&limit=2000")
     headers = {"apikey": ANON, "Authorization": "Bearer " + access,
                "Accept": "application/json"}
