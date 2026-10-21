@@ -89,6 +89,31 @@ def imgs_by_source(u):
     return d
 
 
+# Exposure per column (block + last-2 digits of the reference). Static per column —
+# derived from the official floor plans (north points upper-left), the Vertex 3D model
+# (compass + street labels) and Google Maps: Avenue Hassan II = NW facade,
+# Rue Jabir Ibn Hayane = SE facade. A/B sit on the SE facade; C is the interior core.
+_SE_RUE = ("Sud-Est", "côté Rue Jabir Ibn Hayane")
+_NW_PAT = ("Nord-Ouest", "côté patio & bassin")
+_SE_PAT = ("Sud-Est", "côté patio & bassin")
+_NE_CORE = ("Nord-Est", "cœur de résidence")
+EXPO = {
+    "A": {1: _SE_RUE, 2: _SE_RUE, 3: _NW_PAT, 4: _NW_PAT, 5: _NW_PAT, 6: _SE_RUE, 7: _SE_RUE},
+    "B": {1: _SE_RUE, 2: _SE_RUE, 3: _SE_RUE, 4: _NW_PAT, 5: _NW_PAT, 6: _NW_PAT,
+          7: _SE_RUE, 8: _SE_RUE, 9: _SE_RUE, 10: _SE_RUE, 11: _SE_RUE},
+    "C": {1: _NE_CORE, 2: _NE_CORE, 3: _NE_CORE, 4: _NW_PAT, 5: _NW_PAT, 6: _NW_PAT,
+          7: _SE_PAT, 8: _SE_PAT, 9: _SE_PAT, 10: _NW_PAT, 11: _SE_PAT, 12: _NE_CORE},
+}
+
+
+def exposure(ref):
+    try:
+        card, rep = EXPO[ref[0]][int(ref[2:4])]
+        return card, card + " · " + rep
+    except Exception:
+        return None, None
+
+
 def build_catalog(raw):
     apts = [u for u in raw if u.get("type") == "APPARTEMENT" and not u.get("reserved")]
     cat = []
@@ -109,6 +134,9 @@ def build_catalog(raw):
             "img2d": (im.get("sales_2d") or [None])[0],
             "plan": (im.get("floor_apartment_2d") or [None])[0],
         })
+    for c in cat:
+        card, full = exposure(c["ref"] or "")
+        c["expoCard"], c["expo"] = card, full
     # stable order: price ascending
     cat.sort(key=lambda c: (c["price"] is None, c["price"]))
     return cat
