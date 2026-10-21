@@ -89,29 +89,44 @@ def imgs_by_source(u):
     return d
 
 
-# Exposure per column (block + last-2 digits of the reference). Static per column —
-# derived from the official floor plans (north points upper-left), the Vertex 3D model
-# (compass + street labels) and Google Maps: Avenue Hassan II = NW facade,
-# Rue Jabir Ibn Hayane = SE facade. A/B sit on the SE facade; C is the interior core.
-# each tuple is (filter category, full label shown on the card/detail).
-# Orientation locked from: the floor-plan compass (north points upper-left →
-# plan LEFT=NO/Av Hassan II, RIGHT=SE/Rue Jabir Ibn Hayane, TOP=NE, BOTTOM=SO),
-# the Vertex 3D compass + street labels, and Google Maps. Windows read per lot
-# on the official floor plans (Plans d'étages) + the individual unit plans.
-_SE_RUE = ("Sud-Est", "Sud-Est · côté Rue Jabir Ibn Hayane")
-_NW_PAT = ("Nord-Ouest", "Nord-Ouest · côté patio & bassin")
-_NE_CORE = ("Nord-Est", "Nord-Est · cœur de résidence")
+# Exposure per column (block letter + the unit number = last 2 digits of the
+# reference; units with the same number stack vertically, so exposure is per column).
+#
+# Orientation framework — confirmed three ways (floor-plan compass, Vertex 3D
+# street labels, and the Airbus satellite view): Avenue Hassan II runs SW->NE on
+# the NW side of the plot, so on the official floor plans (north points upper-left)
+#   plan LEFT = Nord-Ouest (Av Hassan II)   plan RIGHT = Sud-Est
+#   plan TOP  = Nord-Est                    plan BOTTOM = Sud-Ouest
+# Blocks G/H sit on the Av Hassan II (NW) facade — NOT commercialised. The sellable
+# A/B/C blocks are the eastern half: A/B form the east bar around the pool courtyard,
+# C is the central spine between the middle patio and the pool courtyard.
+#
+# Each column's window/loggia/terrasse side was read on the official floor plans and
+# cross-checked lot-by-lot in the Vertex 3D viewer (individual unit plans). Spot-checks
+# that anchor the whole mapping: A103 terrasse -> NE exterior; A105 terrasse -> SW pool
+# patio; C104 & C110 loggias -> patios; B103 loggia -> pool patio (N edge); B105 balcon
+# -> SW street; C111 terrasse -> NE exterior. Each tuple is (filter cardinal, full label).
+_SE_AV  = ("Sud-Est", "Sud-Est · côté avenue")
+_NE_EXT = ("Nord-Est", "Nord-Est · soleil du matin")
+_SW_RUE = ("Sud-Ouest", "Sud-Ouest · côté Rue Zineb Nafzia")
+_NW_PIS = ("Nord-Ouest", "Nord-Ouest · côté patio & piscine")
+_NE_PIS = ("Nord-Est", "Nord-Est · côté patio & piscine")
+_SW_PIS = ("Sud-Ouest", "Sud-Ouest · côté patio & piscine")
+_SW_CORE = ("Sud-Ouest", "Sud-Ouest · cœur de résidence")
 _NW_CORE = ("Nord-Ouest", "Nord-Ouest · cœur de résidence")
 _SE_CORE = ("Sud-Est", "Sud-Est · cœur de résidence")
-# A/B sit on the SE long facade: street units face Sud-Est (Rue Jabir Ibn Hayane),
-# patio units face inward = Nord-Ouest. C is the interior core: its units overlook
-# the central patios/courtyards — NE (cols 1-3, 11-12), NO (4-6), SE (7-10).
+# A east bar: top row (cols 2-4) faces NE perimeter; cols 5-7 wrap the pool courtyard
+# (5-6 look S into it, 7 looks W into it); col 1 faces the SE avenue.
+# B east bar: cols 1-2 look W into the pool courtyard, col 3 looks N into it; cols 4-7
+# front the SW street (Rue Zineb Nafzia); cols 8-11 front the SE avenue.
+# C central spine: top row (cols 1-3, 11-12) faces the NE perimeter; cols 4-6 overlook
+# the middle patio (4 looks S, 5-6 look W); cols 7-10 overlook the pool courtyard.
 EXPO = {
-    "A": {1: _SE_RUE, 2: _SE_RUE, 3: _NW_PAT, 4: _NW_PAT, 5: _NW_PAT, 6: _SE_RUE, 7: _SE_RUE},
-    "B": {1: _SE_RUE, 2: _SE_RUE, 3: _SE_RUE, 4: _NW_PAT, 5: _NW_PAT, 6: _NW_PAT,
-          7: _SE_RUE, 8: _SE_RUE, 9: _SE_RUE, 10: _SE_RUE, 11: _SE_RUE},
-    "C": {1: _NE_CORE, 2: _NE_CORE, 3: _NE_CORE, 4: _NW_CORE, 5: _NW_CORE, 6: _NW_CORE,
-          7: _SE_CORE, 8: _SE_CORE, 9: _SE_CORE, 10: _SE_CORE, 11: _NE_CORE, 12: _NE_CORE},
+    "A": {1: _SE_AV, 2: _NE_EXT, 3: _NE_EXT, 4: _NE_EXT, 5: _SW_PIS, 6: _SW_PIS, 7: _NW_PIS},
+    "B": {1: _NW_PIS, 2: _NW_PIS, 3: _NE_PIS, 4: _SW_RUE, 5: _SW_RUE, 6: _SW_RUE,
+          7: _SW_RUE, 8: _SE_AV, 9: _SE_AV, 10: _SE_AV, 11: _SE_AV},
+    "C": {1: _NE_EXT, 2: _NE_EXT, 3: _NE_EXT, 4: _SW_CORE, 5: _NW_CORE, 6: _NW_CORE,
+          7: _SE_CORE, 8: _SE_CORE, 9: _SE_CORE, 10: _SW_CORE, 11: _NE_EXT, 12: _NE_EXT},
 }
 
 
