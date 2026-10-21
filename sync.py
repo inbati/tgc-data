@@ -93,23 +93,32 @@ def imgs_by_source(u):
 # derived from the official floor plans (north points upper-left), the Vertex 3D model
 # (compass + street labels) and Google Maps: Avenue Hassan II = NW facade,
 # Rue Jabir Ibn Hayane = SE facade. A/B sit on the SE facade; C is the interior core.
-_SE_RUE = ("Sud-Est", "côté Rue Jabir Ibn Hayane")
-_NW_PAT = ("Nord-Ouest", "côté patio & bassin")
-_SE_PAT = ("Sud-Est", "côté patio & bassin")
-_NE_CORE = ("Nord-Est", "cœur de résidence")
+# each tuple is (filter category, full label shown on the card/detail).
+# Orientation locked from: the floor-plan compass (north points upper-left →
+# plan LEFT=NO/Av Hassan II, RIGHT=SE/Rue Jabir Ibn Hayane, TOP=NE, BOTTOM=SO),
+# the Vertex 3D compass + street labels, and Google Maps. Windows read per lot
+# on the official floor plans (Plans d'étages) + the individual unit plans.
+_SE_RUE = ("Sud-Est", "Sud-Est · côté Rue Jabir Ibn Hayane")
+_NW_PAT = ("Nord-Ouest", "Nord-Ouest · côté patio & bassin")
+_NE_CORE = ("Nord-Est", "Nord-Est · cœur de résidence")
+_NW_CORE = ("Nord-Ouest", "Nord-Ouest · cœur de résidence")
+_SE_CORE = ("Sud-Est", "Sud-Est · cœur de résidence")
+# A/B sit on the SE long facade: street units face Sud-Est (Rue Jabir Ibn Hayane),
+# patio units face inward = Nord-Ouest. C is the interior core: its units overlook
+# the central patios/courtyards — NE (cols 1-3, 11-12), NO (4-6), SE (7-10).
 EXPO = {
     "A": {1: _SE_RUE, 2: _SE_RUE, 3: _NW_PAT, 4: _NW_PAT, 5: _NW_PAT, 6: _SE_RUE, 7: _SE_RUE},
     "B": {1: _SE_RUE, 2: _SE_RUE, 3: _SE_RUE, 4: _NW_PAT, 5: _NW_PAT, 6: _NW_PAT,
           7: _SE_RUE, 8: _SE_RUE, 9: _SE_RUE, 10: _SE_RUE, 11: _SE_RUE},
-    "C": {1: _NE_CORE, 2: _NE_CORE, 3: _NE_CORE, 4: _NW_PAT, 5: _NW_PAT, 6: _NW_PAT,
-          7: _SE_PAT, 8: _SE_PAT, 9: _SE_PAT, 10: _NW_PAT, 11: _SE_PAT, 12: _NE_CORE},
+    "C": {1: _NE_CORE, 2: _NE_CORE, 3: _NE_CORE, 4: _NW_CORE, 5: _NW_CORE, 6: _NW_CORE,
+          7: _SE_CORE, 8: _SE_CORE, 9: _SE_CORE, 10: _SE_CORE, 11: _NE_CORE, 12: _NE_CORE},
 }
 
 
 def exposure(ref):
     try:
-        card, rep = EXPO[ref[0]][int(ref[2:4])]
-        return card, card + " · " + rep
+        card, full = EXPO[ref[0]][int(ref[2:4])]
+        return card, full
     except Exception:
         return None, None
 
