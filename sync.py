@@ -106,15 +106,22 @@ def imgs_by_source(u):
 # that anchor the whole mapping: A103 terrasse -> NE exterior; A105 terrasse -> SW pool
 # patio; C104 & C110 loggias -> patios; B103 loggia -> pool patio (N edge); B105 balcon
 # -> SW street; C111 terrasse -> NE exterior. Each tuple is (filter cardinal, full label).
-_SE_AV  = ("Sud-Est", "Sud-Est · côté avenue")
-_NE_EXT = ("Nord-Est", "Nord-Est · soleil du matin")
-_SW_RUE = ("Sud-Ouest", "Sud-Ouest · côté Rue Zineb Nafzia")
-_NW_PIS = ("Nord-Ouest", "Nord-Ouest · côté patio & piscine")
-_NE_PIS = ("Nord-Est", "Nord-Est · côté patio & piscine")
-_SW_PIS = ("Sud-Ouest", "Sud-Ouest · côté patio & piscine")
-_SW_CORE = ("Sud-Ouest", "Sud-Ouest · cœur de résidence")
-_NW_CORE = ("Nord-Ouest", "Nord-Ouest · cœur de résidence")
-_SE_CORE = ("Sud-Est", "Sud-Est · cœur de résidence")
+# expoCard is a LIST of cardinal directions (so a corner lot with two aspects
+# surfaces under BOTH exposures in the filter and is shown as a double exposition).
+_SE_AV  = (["Sud-Est"], "Sud-Est · côté avenue")
+_NE_EXT = (["Nord-Est"], "Nord-Est · soleil du matin")
+_SW_RUE = (["Sud-Ouest"], "Sud-Ouest · côté Rue Zineb Nafzia")
+_NW_PIS = (["Nord-Ouest"], "Nord-Ouest · côté patio & piscine")
+_NE_PIS = (["Nord-Est"], "Nord-Est · côté patio & piscine")
+_SW_PIS = (["Sud-Ouest"], "Sud-Ouest · côté patio & piscine")
+_SW_CORE = (["Sud-Ouest"], "Sud-Ouest · cœur de résidence")
+_NW_CORE = (["Nord-Ouest"], "Nord-Ouest · cœur de résidence")
+_SE_CORE = (["Sud-Est"], "Sud-Est · cœur de résidence")
+# double-exposition corner lots (verified lot-by-lot in the Vertex 3D model):
+# A col 2 is the NE/SE outer corner (terrasse 16 m² + balcon 8 m²);
+# B col 7 is the SW/SE outer corner (balcon 28 m² on the Rue Zineb Nafzia side).
+_NE_SE_ANGLE = (["Nord-Est", "Sud-Est"], "Nord-Est / Sud-Est · angle, double exposition")
+_SW_SE_ANGLE = (["Sud-Ouest", "Sud-Est"], "Sud-Ouest / Sud-Est · angle, double exposition")
 # A east bar: top row (cols 2-4) faces NE perimeter; cols 5-7 wrap the pool courtyard
 # (5-6 look S into it, 7 looks W into it); col 1 faces the SE avenue.
 # B east bar: cols 1-2 look W into the pool courtyard, col 3 looks N into it; cols 4-7
@@ -122,9 +129,9 @@ _SE_CORE = ("Sud-Est", "Sud-Est · cœur de résidence")
 # C central spine: top row (cols 1-3, 11-12) faces the NE perimeter; cols 4-6 overlook
 # the middle patio (4 looks S, 5-6 look W); cols 7-10 overlook the pool courtyard.
 EXPO = {
-    "A": {1: _SE_AV, 2: _NE_EXT, 3: _NE_EXT, 4: _NE_EXT, 5: _SW_PIS, 6: _SW_PIS, 7: _NW_PIS},
+    "A": {1: _SE_AV, 2: _NE_SE_ANGLE, 3: _NE_EXT, 4: _NE_EXT, 5: _SW_PIS, 6: _SW_PIS, 7: _NW_PIS},
     "B": {1: _NW_PIS, 2: _NW_PIS, 3: _NE_PIS, 4: _SW_RUE, 5: _SW_RUE, 6: _SW_RUE,
-          7: _SW_RUE, 8: _SE_AV, 9: _SE_AV, 10: _SE_AV, 11: _SE_AV},
+          7: _SW_SE_ANGLE, 8: _SE_AV, 9: _SE_AV, 10: _SE_AV, 11: _SE_AV},
     "C": {1: _NE_EXT, 2: _NE_EXT, 3: _NE_EXT, 4: _SW_CORE, 5: _NW_CORE, 6: _NW_CORE,
           7: _SE_CORE, 8: _SE_CORE, 9: _SE_CORE, 10: _SW_CORE, 11: _NE_EXT, 12: _NE_EXT},
 }
