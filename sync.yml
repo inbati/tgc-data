@@ -1,0 +1,58 @@
+name: TGC availability sync
+
+# Runs every 20 minutes (GitHub may delay scheduled runs a few minutes under load)
+# and can also be triggered by hand from the Actions tab.
+on:
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch: {}
+
+# Let the built-in token commit the refreshed units.json back to this repo.
+permissions:
+  contents: write
+
+concurrency:
+  group: tgc-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Restore the rotating Supabase refresh token from a previous run.
+      - name: Restore refresh token
+        uses: actions/cache/restore@v4
+        with:
+          path: .rt_cache
+          key: tgc-rt-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            tgc-rt-
+
+      - name: Run sync
+        env:
+          TGC_REFRESH_TOKEN: ${{ secrets.TGC_REFRESH_TOKEN }}
+        run: python3 sync.py
+
+      # Save the newly rotated refresh token for the next run.
+      - name: Save refresh token
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .rt_cache
+          key: tgc-rt-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Commit updated data
+        run: |
+          if [ -n "$(git status --porcelain units.json)" ]; then
+            git config user.name  "tgc-sync-bot"
+            git config user.email "actions@users.noreply.github.com"
+            git add units.json
+            git commit -m "sync: update available units"
+            git push
+            echo "pushed update"
+          else
+            echo "no change to commit"
+          fi
