@@ -173,6 +173,39 @@ def build_catalog(raw):
     return cat
 
 
+def disabled_splits(access):
+    """Project splits NOT yet commercialised (b2c_is_enabled false) = 'tranche 2'.
+    Inverse of enabled_splits; e.g. Immeuble D sits here until it goes on sale."""
+    url = (SUPABASE + "/rest/v1/project_splits?select=id"
+           "&project_id=eq." + str(PROJECT_ID) + "&b2c_is_enabled=eq.false")
+    headers = {"apikey": ANON, "Authorization": "Bearer " + access,
+               "Accept": "application/json"}
+    st, txt = http("GET", url, headers)
+    if st != 200:
+        raise RuntimeError("disabled splits pull status %s: %s" % (st, txt[:200]))
+    return [row["id"] for row in json.loads(txt)]
+
+
+def build_tranche2(access):
+    """Catalogue of available units in not-yet-commercialised splits (tranche 2)."""
+    splits = disabled_splits(access)
+    if not splits:
+        print("tranche2: no not-yet-commercialised splits")
+        return []
+    print("tranche2 splits:", splits)
+    inlist = ",".join(str(x) for x in splits)
+    url = (SUPABASE + "/rest/v1/units?select=*"
+           "&project_split_id=in.(" + inlist + ")"
+           "&type=eq.APPARTEMENT&reserved=eq.false"
+           "&order=reference.asc&limit=2000")
+    headers = {"apikey": ANON, "Authorization": "Bearer " + access,
+               "Accept": "application/json"}
+    st, txt = http("GET", url, headers)
+    if st != 200:
+        raise RuntimeError("tranche2 units pull status %s: %s" % (st, txt[:200]))
+    return build_catalog(json.loads(txt))
+
+
 def main():
     cache_rt = None
     if os.path.exists(RT_CACHE):
@@ -220,6 +253,22 @@ def main():
         with open(OUT, "w") as f:
             f.write(new)
         print("units.json updated (%d apartments)" % len(cat))
+
+    # --- Tranche 2 (not-yet-commercialised units) --- non-fatal add-on so a
+    # tranche-2 hiccup never blocks the live availability sync above.
+    try:
+        t2 = build_tranche2(access)
+        t2new = json.dumps(t2, ensure_ascii=False)
+        t2out = os.environ.get("OUT_FILE_T2", "units_tranche2.json")
+        t2old = open(t2out).read() if os.path.exists(t2out) else None
+        if t2new == t2old:
+            print("tranche2: no change (%d units)" % len(t2))
+        else:
+            with open(t2out, "w") as f:
+                f.write(t2new)
+            print("units_tranche2.json updated (%d units)" % len(t2))
+    except Exception as e:
+        print("tranche2: skipped due to error:", repr(e), file=sys.stderr)
 
 
 if __name__ == "__main__":
