@@ -240,6 +240,34 @@ def main():
               file=sys.stderr)
         sys.exit(3)
 
+    # --- Tranche 2 (not-yet-commercialised units) + bloc D promotion ---
+    # Immeuble D is on sale on inbati.com even though the promoter's b2c_is_enabled
+    # is still false, so it comes back in the tranche-2 (disabled) splits. We move
+    # block D into the main availability list (units.json) and keep the rest
+    # (E/F/G/H) in units_tranche2.json. This whole step is non-fatal: a tranche-2
+    # hiccup must never block the main availability sync below, and must never wipe
+    # units_tranche2.json. When the promoter finally flips D to commercialised it
+    # arrives via pull_units() instead; the dedup by reference avoids any double.
+    PROMOTE_BLOCKS = ("D",)   # blocks commercialised by inbati ahead of the promoter flag
+    t2 = None                 # None => leave units_tranche2.json untouched this run
+    try:
+        t2_all = build_tranche2(access)
+        seen = {c.get("ref") for c in cat}
+        promoted = 0
+        for u in t2_all:
+            ref = u.get("ref") or ""
+            if ref[:1] in PROMOTE_BLOCKS and ref not in seen:
+                cat.append(u)
+                seen.add(ref)
+                promoted += 1
+        if promoted:
+            cat.sort(key=lambda c: (c["price"] is None, c["price"]))
+            print("promoted %d unit(s) from block(s) %s into units.json"
+                  % (promoted, "/".join(PROMOTE_BLOCKS)))
+        t2 = [u for u in t2_all if (u.get("ref") or "")[:1] not in PROMOTE_BLOCKS]
+    except Exception as e:
+        print("tranche2/promote: skipped due to error:", repr(e), file=sys.stderr)
+
     blocks = collections.Counter((c["ref"] or "?")[0] for c in cat)
     print("available apartments:", len(cat),
           "| price sum:", sum(c["price"] or 0 for c in cat),
@@ -254,10 +282,9 @@ def main():
             f.write(new)
         print("units.json updated (%d apartments)" % len(cat))
 
-    # --- Tranche 2 (not-yet-commercialised units) --- non-fatal add-on so a
-    # tranche-2 hiccup never blocks the live availability sync above.
-    try:
-        t2 = build_tranche2(access)
+    # Write the remaining tranche-2 catalogue (E/F/G/H) only when the pull above
+    # actually succeeded (t2 is not None), so a failure never wipes the file.
+    if t2 is not None:
         t2new = json.dumps(t2, ensure_ascii=False)
         t2out = os.environ.get("OUT_FILE_T2", "units_tranche2.json")
         t2old = open(t2out).read() if os.path.exists(t2out) else None
@@ -267,8 +294,6 @@ def main():
             with open(t2out, "w") as f:
                 f.write(t2new)
             print("units_tranche2.json updated (%d units)" % len(t2))
-    except Exception as e:
-        print("tranche2: skipped due to error:", repr(e), file=sys.stderr)
 
 
 if __name__ == "__main__":
