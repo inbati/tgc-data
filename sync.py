@@ -60,23 +60,32 @@ def enabled_splits(access):
     return ids
 
 
+def rpc_split_units(access, split_ids):
+    """Fetch the units of the given project splits via the promoter's b2c RPC.
+    The promoter locked direct reads on the `units` table (RLS now returns 0 to
+    the b2c token), so its own portal and this sync pull units through the
+    SECURITY DEFINER function b2c_list_split_units(p_split_ids). It returns the
+    same snake_case unit shape build_catalog already expects (reference,
+    price_asking_mad, reserved, bedrooms_count, b2c_image_files, ...), plus
+    parking rows and reserved units, which build_catalog filters out."""
+    if not split_ids:
+        return []
+    url = SUPABASE + "/rest/v1/rpc/b2c_list_split_units"
+    headers = {"apikey": ANON, "Authorization": "Bearer " + access,
+               "Content-Type": "application/json", "Accept": "application/json"}
+    st, txt = http("POST", url, headers, json.dumps({"p_split_ids": list(split_ids)}))
+    if st != 200:
+        raise RuntimeError("b2c_list_split_units status %s: %s" % (st, txt[:200]))
+    return json.loads(txt)
+
+
 def pull_units(access):
-    """Authenticated pull of available, commercialised TGC units."""
+    """Available, commercialised TGC units, pulled via the promoter b2c RPC."""
     splits = enabled_splits(access)
     if not splits:
         raise RuntimeError("no commercialised splits returned")
     print("commercialised splits:", splits)
-    inlist = ",".join(str(x) for x in splits)
-    url = (SUPABASE + "/rest/v1/units?select=*"
-           "&project_split_id=in.(" + inlist + ")"
-           "&type=eq.APPARTEMENT&reserved=eq.false"
-           "&order=reference.asc&limit=2000")
-    headers = {"apikey": ANON, "Authorization": "Bearer " + access,
-               "Accept": "application/json"}
-    st, txt = http("GET", url, headers)
-    if st != 200:
-        raise RuntimeError("units pull status %s: %s" % (st, txt[:200]))
-    return json.loads(txt)
+    return rpc_split_units(access, splits)
 
 
 def imgs_by_source(u):
@@ -193,17 +202,50 @@ def build_tranche2(access):
         print("tranche2: no not-yet-commercialised splits")
         return []
     print("tranche2 splits:", splits)
-    inlist = ",".join(str(x) for x in splits)
-    url = (SUPABASE + "/rest/v1/units?select=*"
-           "&project_split_id=in.(" + inlist + ")"
-           "&type=eq.APPARTEMENT&reserved=eq.false"
-           "&order=reference.asc&limit=2000")
-    headers = {"apikey": ANON, "Authorization": "Bearer " + access,
-               "Accept": "application/json"}
-    st, txt = http("GET", url, headers)
-    if st != 200:
-        raise RuntimeError("tranche2 units pull status %s: %s" % (st, txt[:200]))
-    return build_catalog(json.loads(txt))
+    return build_catalog(rpc_split_units(access, splits))
+
+
+def diagnose_catalogue(access):
+    """Read-only snapshot printed when the catalogue comes back empty, so the
+    failure is self-explanatory. Lists project-5 splits and, via the b2c RPC,
+    how many units/apartments (free vs reserved) each block holds. Never raises."""
+    try:
+        headers = {"apikey": ANON, "Authorization": "Bearer " + access,
+                   "Accept": "application/json"}
+        st, txt = http("GET", SUPABASE + "/rest/v1/project_splits?select=id,split_name,"
+                       "b2c_is_enabled&project_id=eq." + str(PROJECT_ID), headers)
+        splits = json.loads(txt) if st == 200 else []
+        print("DIAG project_splits status=%s count=%d" % (st, len(splits)), file=sys.stderr)
+        ids = []
+        for s in splits:
+            ids.append(s.get("id"))
+            print("DIAG split id=%s b2c_is_enabled=%s name=%r"
+                  % (s.get("id"), s.get("b2c_is_enabled"), s.get("split_name")), file=sys.stderr)
+        if not ids:
+            return
+        try:
+            units = rpc_split_units(access, ids)
+        except Exception as e:
+            print("DIAG rpc error:", repr(e), file=sys.stderr)
+            return
+        print("DIAG units via b2c_list_split_units:", len(units), file=sys.stderr)
+        per = {}
+        for u in units:
+            b = (u.get("reference") or "?")[:1]
+            d = per.setdefault(b, {"total": 0, "appt": 0, "appt_free": 0, "appt_reserved": 0})
+            d["total"] += 1
+            if u.get("type") == "APPARTEMENT":
+                d["appt"] += 1
+                if u.get("reserved"):
+                    d["appt_reserved"] += 1
+                else:
+                    d["appt_free"] += 1
+        for b in sorted(per):
+            d = per[b]
+            print("DIAG block %s -> total=%d appt=%d appt_free=%d appt_reserved=%d"
+                  % (b, d["total"], d["appt"], d["appt_free"], d["appt_reserved"]), file=sys.stderr)
+    except Exception as e:
+        print("DIAG error:", repr(e), file=sys.stderr)
 
 
 def main():
@@ -238,17 +280,21 @@ def main():
     if not cat:
         print("FATAL: catalogue came back empty — aborting so we don't wipe the live page.",
               file=sys.stderr)
+        diagnose_catalogue(access)
         sys.exit(3)
 
     # --- Tranche 2 (not-yet-commercialised units) + bloc D promotion ---
     # Immeuble D is on sale on inbati.com even though the promoter's b2c_is_enabled
-    # is still false, so it comes back in the tranche-2 (disabled) splits. We move
+    # is still false, so it comes back in the trache-2 (disabled) splits. We move
     # block D into the main availability list (units.json) and keep the rest
     # (E/F/G/H) in units_tranche2.json. This whole step is non-fatal: a tranche-2
     # hiccup must never block the main availability sync below, and must never wipe
     # units_tranche2.json. When the promoter finally flips D to commercialised it
     # arrives via pull_units() instead; the dedup by reference avoids any double.
-    PROMOTE_BLOCKS = ("D",)   # blocks commercialised by inbati ahead of the promoter flag
+    # Block D is temporarily HELD OFF the live /residences page while its per-unit
+    # exposure (Nord/Sud…) mapping is rebuilt. Keep it out of units.json until then;
+    # flip back to ("D",) once block D's exposure is ready.
+    PROMOTE_BLOCKS = ()       # was ("D",) — see note above
     t2 = None                 # None => leave units_tranche2.json untouched this run
     try:
         t2_all = build_tranche2(access)
