@@ -98,58 +98,55 @@ def imgs_by_source(u):
     return d
 
 
-# Exposure per column (block letter + the unit number = last 2 digits of the
-# reference; units with the same number stack vertically, so exposure is per column).
-#
-# Orientation framework — confirmed three ways (floor-plan compass, Vertex 3D
-# street labels, and the Airbus satellite view): Avenue Hassan II runs SW->NE on
-# the NW side of the plot, so on the official floor plans (north points upper-left)
-#   plan LEFT = Nord-Ouest (Av Hassan II)   plan RIGHT = Sud-Est
-#   plan TOP  = Nord-Est                    plan BOTTOM = Sud-Ouest
-# Blocks G/H sit on the Av Hassan II (NW) facade — NOT commercialised. The sellable
-# A/B/C blocks are the eastern half: A/B form the east bar around the pool courtyard,
-# C is the central spine between the middle patio and the pool courtyard.
-#
-# Each column's window/loggia/terrasse side was read on the official floor plans and
-# cross-checked lot-by-lot in the Vertex 3D viewer (individual unit plans). Spot-checks
-# that anchor the whole mapping: A103 terrasse -> NE exterior; A105 terrasse -> SW pool
-# patio; C104 & C110 loggias -> patios; B103 loggia -> pool patio (N edge); B105 balcon
-# -> SW street; C111 terrasse -> NE exterior. Each tuple is (filter cardinal, full label).
-# expoCard is a LIST of cardinal directions (so a corner lot with two aspects
-# surfaces under BOTH exposures in the filter and is shown as a double exposition).
-_SE_AV  = (["Sud-Est"], "Sud-Est · côté avenue")
-_NE_EXT = (["Nord-Est"], "Nord-Est · soleil du matin")
-_SW_RUE = (["Sud-Ouest"], "Sud-Ouest · côté Rue Zineb Nafzia")
-_NW_PIS = (["Nord-Ouest"], "Nord-Ouest · côté patio & piscine")
-_NE_PIS = (["Nord-Est"], "Nord-Est · côté patio & piscine")
-_SW_PIS = (["Sud-Ouest"], "Sud-Ouest · côté patio & piscine")
-_SW_CORE = (["Sud-Ouest"], "Sud-Ouest · cœur de résidence")
-_NW_CORE = (["Nord-Ouest"], "Nord-Ouest · cœur de résidence")
-_SE_CORE = (["Sud-Est"], "Sud-Est · cœur de résidence")
-# double-exposition corner lots (verified lot-by-lot in the Vertex 3D model):
-# A col 2 is the NE/SE outer corner (terrasse 16 m² + balcon 8 m²);
-# B col 7 is the SW/SE outer corner (balcon 28 m² on the Rue Zineb Nafzia side).
-_NE_SE_ANGLE = (["Nord-Est", "Sud-Est"], "Nord-Est / Sud-Est · angle, double exposition")
-_SW_SE_ANGLE = (["Sud-Ouest", "Sud-Est"], "Sud-Ouest / Sud-Est · angle, double exposition")
-# A east bar: top row (cols 2-4) faces NE perimeter; cols 5-7 wrap the pool courtyard
-# (5-6 look S into it, 7 looks W into it); col 1 faces the SE avenue.
-# B east bar: cols 1-2 look W into the pool courtyard, col 3 looks N into it; cols 4-7
-# front the SW street (Rue Zineb Nafzia); cols 8-11 front the SE avenue.
-# C central spine: top row (cols 1-3, 11-12) faces the NE perimeter; cols 4-6 overlook
-# the middle patio (4 looks S, 5-6 look W); cols 7-10 overlook the pool courtyard.
-EXPO = {
-    "A": {1: _SE_AV, 2: _NE_SE_ANGLE, 3: _NE_EXT, 4: _NE_EXT, 5: _SW_PIS, 6: _SW_PIS, 7: _NW_PIS},
-    "B": {1: _NW_PIS, 2: _NW_PIS, 3: _NE_PIS, 4: _SW_RUE, 5: _SW_RUE, 6: _SW_RUE,
-          7: _SW_SE_ANGLE, 8: _SE_AV, 9: _SE_AV, 10: _SE_AV, 11: _SE_AV},
-    "C": {1: _NE_EXT, 2: _NE_EXT, 3: _NE_EXT, 4: _SW_CORE, 5: _NW_CORE, 6: _NW_CORE,
-          7: _SE_CORE, 8: _SE_CORE, 9: _SE_CORE, 10: _SW_CORE, 11: _NE_EXT, 12: _NE_EXT},
+# ---------------------------------------------------------------------------
+# Expositions relevees a la main, plan par plan, lot par lot et fenetre par
+# fenetre (numero du lot -> clic sur chaque ouverture -> boussole).
+#   * lots du REZ (ref ..0..): duplex rez-de-chaussee + mezzanine -> union des
+#     deux niveaux (EXPO_G).
+#   * lots d ETAGE (ref ..1.. a ..5..): niveau courant, identique du 1er au 5e
+#     (EXPO_F, indexe par la colonne du lot).
+# expoCard est une LISTE de directions (une par facade vitree): un lot d angle
+# ressort sous CHAQUE exposition dans le filtre et s affiche en double/triple
+# exposition. Les 8 blocs sont presents; E/F/G/H restent dormants tant qu ils
+# ne sont pas commercialises.
+_FR = {'NO': 'Nord-Ouest', 'NE': 'Nord-Est', 'SE': 'Sud-Est', 'SO': 'Sud-Ouest'}
+
+EXPO_G = {
+    'A': {1: ['NE', 'SE'], 2: ['NO', 'NE', 'SO'], 3: ['SO'], 4: ['NO'], 5: ['NO'], 6: ['SE'], 7: ['SE']},
+    'B': {1: ['SE'], 2: ['SE'], 3: ['SE'], 4: ['NO'], 5: ['NO'], 6: ['NE'], 7: ['SO'], 8: ['NO', 'SO'], 9: ['NO', 'SO'], 10: ['SE', 'SO'], 11: ['SE']},
+    'C': {1: ['SE'], 2: ['SE'], 3: ['SO'], 4: ['SE', 'SO'], 5: ['NE', 'SE'], 6: ['NO', 'NE'], 7: ['NE', 'SE'], 8: ['NO', 'NE'], 9: ['SO'], 10: ['NO'], 11: ['NO']},
+    'D': {1: ['SO'], 2: ['SO'], 3: ['NE'], 4: ['NE', 'SE'], 5: ['SE'], 6: ['SE'], 7: ['NO'], 8: ['NO'], 9: ['NO', 'NE'], 10: ['NE'], 11: ['SO'], 12: ['SO']},
+    'E': {1: ['SE'], 2: ['SE'], 3: ['SE'], 4: ['SO'], 5: ['NE', 'SE'], 6: ['NE', 'SE'], 7: ['NO', 'NE'], 8: ['NE', 'SE'], 9: ['NO', 'NE'], 10: ['SO'], 11: ['NO', 'SO'], 12: ['NO'], 13: ['NO'], 14: ['NO']},
+    'F': {1: ['SE'], 2: ['SO'], 3: ['NE'], 4: ['SE'], 5: ['NO', 'SO'], 6: ['NO', 'NE']},
+    'G': {1: ['SE'], 2: ['SE'], 3: ['SO'], 4: ['NE', 'SE']},
+    'H': {1: ['NE'], 2: ['NE'], 3: ['SE']},
 }
+
+EXPO_F = {
+    'A': {1: ['SE'], 2: ['NE', 'SE'], 3: ['NE', 'SE'], 4: ['NO', 'SO'], 5: ['NE', 'SO'], 6: ['SO'], 7: ['NO'], 8: ['NO'], 9: ['SE'], 10: ['SE']},
+    'B': {1: ['NO'], 2: ['NO'], 3: ['NE'], 4: ['SO'], 5: ['NO', 'SO'], 6: ['NO', 'SO'], 7: ['SE', 'SO'], 8: ['SE'], 9: ['SE'], 10: ['SE'], 11: ['SE']},
+    'C': {1: ['NE'], 2: ['NE'], 3: ['NE'], 4: ['SO'], 5: ['NO'], 6: ['NO'], 7: ['SE'], 8: ['SE'], 9: ['SO'], 10: ['NE', 'SO'], 11: ['NO', 'SE'], 12: ['NE']},
+    'D': {1: ['NO'], 2: ['NO'], 3: ['NO', 'NE'], 4: ['NE'], 5: ['SO'], 6: ['SO'], 7: ['SO'], 8: ['SO'], 9: ['SO'], 10: ['NE'], 11: ['NE', 'SE'], 12: ['SE'], 13: ['SE']},
+    'E': {1: ['NE'], 2: ['NE'], 3: ['NE'], 4: ['NE'], 5: ['NE'], 6: ['SO'], 7: ['NO', 'SO'], 8: ['NO'], 9: ['NO'], 10: ['SE'], 11: ['SE'], 12: ['SE'], 13: ['SO']},
+    'F': {1: ['NO', 'SE', 'SO'], 2: ['NE', 'SO'], 3: ['NO'], 4: ['NO', 'SO'], 5: ['SE', 'SO'], 6: ['SE'], 7: ['SO'], 8: ['NE']},
+    'G': {1: ['NO'], 2: ['NO'], 3: ['NO'], 4: ['NO'], 5: ['SE'], 6: ['SE'], 7: ['SO'], 8: ['NE', 'SE'], 9: ['SE']},
+    'H': {1: ['SE'], 2: ['NO'], 3: ['NO'], 4: ['NO', 'SO'], 5: ['SO'], 6: ['SO'], 7: ['NE'], 8: ['NE']},
+}
+
+
+def _expo_label(dirs):
+    names = [_FR[d] for d in dirs]
+    if len(names) == 1:
+        return names[0]
+    tag = 'double exposition' if len(names) == 2 else 'triple exposition'
+    return ' / '.join(names) + ' · ' + tag
 
 
 def exposure(ref):
     try:
-        card, full = EXPO[ref[0]][int(ref[2:4])]
-        return card, full
+        table = EXPO_G if ref[1] == '0' else EXPO_F
+        dirs = table[ref[0]][int(ref[2:4])]
+        return [_FR[d] for d in dirs], _expo_label(dirs)
     except Exception:
         return None, None
 
@@ -291,10 +288,11 @@ def main():
     # hiccup must never block the main availability sync below, and must never wipe
     # units_tranche2.json. When the promoter finally flips D to commercialised it
     # arrives via pull_units() instead; the dedup by reference avoids any double.
-    # Block D is temporarily HELD OFF the live /residences page while its per-unit
-    # exposure (Nord/Sud…) mapping is rebuilt. Keep it out of units.json until then;
-    # flip back to ("D",) once block D's exposure is ready.
-    PROMOTE_BLOCKS = ()       # was ("D",) — see note above
+    # Block D's per-unit exposure mapping is now rebuilt — read lot by lot, window
+    # by window on the official floor plans (rez-de-chaussée + mezzanine for the
+    # ground duplexes, étage courant for levels 1-5; see EXPO_G / EXPO_F above). It
+    # goes back on the live /residences page.
+    PROMOTE_BLOCKS = ("D",)
     t2 = None                 # None => leave units_tranche2.json untouched this run
     try:
         t2_all = build_tranche2(access)
