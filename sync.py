@@ -88,6 +88,58 @@ def pull_units(access):
     return rpc_split_units(access, splits)
 
 
+def unavailable_unit_ids(access):
+    """Unit ids the promoter currently marks UNAVAILABLE (reserved / held /
+    optioned) through the very RPC its own portal calls to grey out lots.
+    This is a second, authoritative reservation signal: a few lots (seen on
+    bloc D: D103, D412, D502) show as 'Réservé' on the portal while still
+    carrying reserved=false in the b2c_list_split_units payload, so the plain
+    reserved-flag filter in build_catalog lets them through. Excluding these ids
+    makes inbati.com match the portal exactly, bloc D included.
+
+    Non-fatal by design: on any error it returns an empty set and the sync
+    degrades gracefully to the reserved-flag filter alone (status quo)."""
+    url = SUPABASE + "/rest/v1/rpc/list_b2c_project_unavailable_unit_ids"
+    headers = {"apikey": ANON, "Authorization": "Bearer " + access,
+               "Content-Type": "application/json", "Accept": "application/json"}
+    # PostgREST needs the exact arg name; try the project's p_-prefixed convention
+    # first, then plain variants. Whichever returns 200 wins.
+    for body in ('{"p_project_id": %d}' % PROJECT_ID,
+                 '{"project_id": %d}' % PROJECT_ID,
+                 '{"p_id": %d}' % PROJECT_ID):
+        try:
+            st, txt = http("POST", url, headers, body)
+        except Exception as e:
+            print("unavailable_unit_ids error", repr(e), "body", body, file=sys.stderr)
+            continue
+        if st != 200:
+            print("unavailable_unit_ids status", st, "body", body, txt[:120],
+                  file=sys.stderr)
+            continue
+        try:
+            data = json.loads(txt)
+        except Exception as e:
+            print("unavailable_unit_ids parse", repr(e), file=sys.stderr)
+            continue
+        ids = set()
+        if isinstance(data, list):
+            for x in data:
+                if isinstance(x, (str, int)):
+                    ids.add(x)
+                elif isinstance(x, dict):
+                    for k in ("id", "unit_id", "unavailable_unit_id",
+                              "list_b2c_project_unavailable_unit_ids"):
+                        if x.get(k) is not None:
+                            ids.add(x[k])
+                            break
+        ids.discard(None)
+        print("unavailable_unit_ids: %d id(s) via %s" % (len(ids), body))
+        return ids
+    print("unavailable_unit_ids: no signature worked; proceeding without it",
+          file=sys.stderr)
+    return set()
+
+
 def imgs_by_source(u):
     d = {}
     bif = u.get("b2c_image_files") or {}
@@ -151,8 +203,10 @@ def exposure(ref):
         return None, None
 
 
-def build_catalog(raw):
-    apts = [u for u in raw if u.get("type") == "APPARTEMENT" and not u.get("reserved")]
+def build_catalog(raw, unavailable=()):
+    apts = [u for u in raw if u.get("type") == "APPARTEMENT"
+            and not u.get("reserved")
+            and u.get("id") not in unavailable]
     cat = []
     for u in apts:
         im = imgs_by_source(u)
@@ -192,14 +246,16 @@ def disabled_splits(access):
     return [row["id"] for row in json.loads(txt)]
 
 
-def build_tranche2(access):
-    """Catalogue of available units in not-yet-commercialised splits (tranche 2)."""
+def build_tranche2(access, unavailable=()):
+    """Catalogue of available units in not-yet-commercialised splits (tranche 2).
+    `unavailable` (reserved/held ids from the portal) is applied here too, so a
+    promoted bloc-D lot that is reserved on the portal never reaches units.json."""
     splits = disabled_splits(access)
     if not splits:
         print("tranche2: no not-yet-commercialised splits")
         return []
     print("tranche2 splits:", splits)
-    return build_catalog(rpc_split_units(access, splits))
+    return build_catalog(rpc_split_units(access, splits), unavailable)
 
 
 def diagnose_catalogue(access):
@@ -272,8 +328,12 @@ def main():
     with open(RT_CACHE, "w") as f:
         f.write(new_rt)
 
+    # Portal-level unavailable (reserved/held) ids — authoritative second signal,
+    # applied on top of the per-unit reserved flag so inbati matches the portal.
+    unavailable = unavailable_unit_ids(access)
+
     raw = pull_units(access)
-    cat = build_catalog(raw)
+    cat = build_catalog(raw, unavailable)
     if not cat:
         print("FATAL: catalogue came back empty — aborting so we don't wipe the live page.",
               file=sys.stderr)
@@ -295,7 +355,7 @@ def main():
     PROMOTE_BLOCKS = ("D",)
     t2 = None                 # None => leave units_tranche2.json untouched this run
     try:
-        t2_all = build_tranche2(access)
+        t2_all = build_tranche2(access, unavailable)
         seen = {c.get("ref") for c in cat}
         promoted = 0
         for u in t2_all:
